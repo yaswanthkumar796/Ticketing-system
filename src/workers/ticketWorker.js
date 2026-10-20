@@ -1,5 +1,7 @@
 import { Queue, Worker } from 'bullmq';
 import 'dotenv/config';
+import pool from '../config/db.js';
+import redis from '../config/redis.js';
 
 /**
  * BullMQ requires a plain connection config object (NOT a shared ioredis instance).
@@ -44,8 +46,25 @@ console.log('📋 BullMQ Queue "ticket-ttl" initialized');
 const ticketWorker = new Worker(
   'ticket-ttl',
   async (job) => {
-    console.log('⏳ 3-minute TTL expired for event:', job.data.eventId);
-    // TODO (Prompt 6): query DB — if ticket still LOCKED, rollback Redis counter
+    const { eventId } = job.data;
+
+    console.log(`Verifying payment status for event ${eventId}...`);
+
+    // Check the DB for any ticket that was fully paid for this event
+    const [rows] = await pool.query(
+      'SELECT * FROM tickets WHERE event_id = ? AND status = "PAID"',
+      [eventId]
+    );
+
+    if (rows.length === 0) {
+      // No paid ticket found — the user's payment window expired.
+      // Rollback: increment the available seat counter in Redis so the
+      // seat can be claimed by another user.
+      await redis.incr(`event:${eventId}:tickets_available`);
+      console.log(`Payment timeout. Seat released back to Redis queue for event ${eventId}.`);
+    } else {
+      console.log(`✅ Payment confirmed for event ${eventId}. No rollback needed.`);
+    }
   },
   { connection: bullConnection }
 );
