@@ -1,6 +1,7 @@
 import redis from '../config/redis.js';
 import { ticketQueue } from '../workers/ticketWorker.js';
 import { getIO } from '../config/socket.js';
+import pool from '../config/db.js';
 
 /**
  * Atomic Lua script — the "Lua Shield" for race-condition-safe ticket reservation.
@@ -62,4 +63,53 @@ export async function reserveTicket(eventId) {
   }
 
   return false;
+}
+
+/**
+ * Checks out a ticket for a user using Optimistic Concurrency Control (OCC).
+ *
+ * OCC pattern:
+ *   1. Read the current version of the event row.
+ *   2. Attempt UPDATE with WHERE version = currentVersion.
+ *   3. If another request updated first, affectedRows === 0 → conflict detected.
+ *   4. On success, INSERT a PAID ticket record and emit SOLD event.
+ *
+ * @param {number|string} eventId - The event to check out a ticket for.
+ * @param {string}        userId  - The user completing the purchase.
+ * @returns {Promise<{ success: boolean, message?: string, error?: string }>}
+ */
+export async function checkoutTicket(eventId, userId) {
+  // Step 1: Read the current event version
+  const [rows] = await pool.query(
+    'SELECT version FROM events WHERE id = ?',
+    [eventId]
+  );
+
+  if (rows.length === 0) {
+    return { success: false, error: 'Event not found' };
+  }
+
+  const currentVersion = rows[0].version;
+
+  // Step 2: Attempt atomic version bump — only succeeds if no one else updated first
+  const [updateResult] = await pool.query(
+    'UPDATE events SET version = version + 1 WHERE id = ? AND version = ?',
+    [eventId, currentVersion]
+  );
+
+  // Step 3: OCC conflict check — another request slipped in between read and update
+  if (updateResult.affectedRows === 0) {
+    return { success: false, error: 'Concurrency conflict during checkout. Try again.' };
+  }
+
+  // Step 4: Version bump won — safely write the PAID ticket record
+  await pool.query(
+    'INSERT INTO tickets (event_id, user_id, status) VALUES (?, ?, "PAID")',
+    [eventId, userId]
+  );
+
+  // Broadcast sale to all clients watching this event room
+  getIO().to(`event:${eventId}`).emit('ticket-update', { action: 'SOLD' });
+
+  return { success: true, message: 'Checkout complete' };
 }
