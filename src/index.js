@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import pool from './config/db.js';
+import ticketRoutes from './routes/ticketRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,6 +11,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
+app.use('/api/tickets', ticketRoutes);
 
 /**
  * GET /api/health

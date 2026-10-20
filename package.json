@@ -9,12 +9,18 @@
     "dev": "node --watch src/index.js",
     "migrate": "node src/db/migrate.js"
   },
-  "keywords": ["ticketing", "nodejs", "express", "mysql"],
+  "keywords": [
+    "ticketing",
+    "nodejs",
+    "express",
+    "mysql"
+  ],
   "author": "yaswanthkumar796",
   "license": "ISC",
   "dependencies": {
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "ioredis": "^6.0.0",
     "mysql2": "^3.10.1"
   }
 }
