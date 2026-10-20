@@ -1,8 +1,10 @@
 import './workers/ticketWorker.js';
 import 'dotenv/config';
+import { createServer } from 'node:http';
 import express from 'express';
 import pool from './config/db.js';
 import ticketRoutes from './routes/ticketRoutes.js';
+import { initSocket } from './config/socket.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -49,9 +51,13 @@ app.use((err, req, res, next) => {
 });
 
 // ─── Start Server ─────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+const httpServer = createServer(app);
+initSocket(httpServer);
+
+httpServer.listen(PORT, () => {
   console.log(`🚀 Ticketing System server is running on http://localhost:${PORT}`);
   console.log(`   Health check → http://localhost:${PORT}/api/health`);
+  console.log(`   WebSocket   → ws://localhost:${PORT}`);
 });
 
 export default app;

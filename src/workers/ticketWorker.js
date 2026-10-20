@@ -2,6 +2,7 @@ import { Queue, Worker } from 'bullmq';
 import 'dotenv/config';
 import pool from '../config/db.js';
 import redis from '../config/redis.js';
+import { getIO } from '../config/socket.js';
 
 /**
  * BullMQ requires a plain connection config object (NOT a shared ioredis instance).
@@ -62,6 +63,9 @@ const ticketWorker = new Worker(
       // seat can be claimed by another user.
       await redis.incr(`event:${eventId}:tickets_available`);
       console.log(`Payment timeout. Seat released back to Redis queue for event ${eventId}.`);
+
+      // Broadcast seat release to all clients watching this event room
+      getIO().to(`event:${eventId}`).emit('ticket-update', { action: 'RELEASED' });
     } else {
       console.log(`✅ Payment confirmed for event ${eventId}. No rollback needed.`);
     }
