@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Ticketing Live Sync</title>
+  <style>
+    body { font-family: monospace; background: #111; color: #0f0; padding: 20px; }
+  </style>
+</head>
+<body>
+  <h2>🎫 Live Ticket Monitor (Event 1)</h2>
+  <div id="logs"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const logs = document.getElementById('logs');
+
+    socket.on('connect', () => {
+      logs.innerHTML += '<p>🟢 Connected to WebSocket Server</p>';
+      socket.emit('join-event', 1);
+      logs.innerHTML += '<p>📡 Joined Room: event:1</p>';
+    });
+
+    socket.on('ticket-update', (data) => {
+      const time = new Date().toLocaleTimeString();
+      const color = data.action === 'LOCKED' ? '#f00' : '#0ff';
+      logs.innerHTML += `<p style="color: ${color}">[${time}] Ticket ${data.action}!</p>`;
+    });
+  </script>
+</body>
+</html>
