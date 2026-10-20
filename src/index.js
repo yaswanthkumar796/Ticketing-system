@@ -1,3 +1,4 @@
+import './workers/ticketWorker.js';
 import 'dotenv/config';
 import express from 'express';
 import pool from './config/db.js';

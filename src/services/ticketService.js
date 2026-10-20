@@ -1,4 +1,5 @@
 import redis from '../config/redis.js';
+import { ticketQueue } from '../workers/ticketWorker.js';
 
 /**
  * Atomic Lua script — the "Lua Shield" for race-condition-safe ticket reservation.
@@ -48,5 +49,12 @@ export async function reserveTicket(eventId) {
   }
 
   // 1 → success (ticket reserved), 0 → sold out
-  return result === 1;
+  if (result === 1) {
+    // Enqueue a delayed job — fires after 3 minutes (180 000 ms).
+    // The worker will check if payment completed; if not, it will rollback.
+    await ticketQueue.add('check-payment', { eventId }, { delay: 180000 });
+    return true;
+  }
+
+  return false;
 }
